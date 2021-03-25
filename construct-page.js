@@ -15,14 +15,20 @@ window.onload = () => {
  * Write code to test convergence
  */
 
+const IMAGE = 0;
+const TEXT = 1;
+
 var files;
 var input;
 
 function generateWebsite() {
     // init json
-    input = {
-        "images": []
-    }
+    input = [];
+
+    // have to wait for everything to load
+    let fileCount = 0;
+    let validFiles = [];
+    var filesLoaded = 0;
 
     // READ INPUT
     // read files into json
@@ -30,26 +36,63 @@ function generateWebsite() {
         document.getElementById("upload-message").innerHTML = "No folder uploaded";
         return;
     } else {
+        // check files valid
         for (let i = 0; i < files.length; i++) {
-            // Check if the file is an image.
+            let file = files[i];
+            if (file.type && (file.type.match('image.*') || file.type.match('text/plain'))) {
+                fileCount++;
+                validFiles[i] = true;
+            }
+        }
+        
+        for (let i = 0; i < files.length; i++) {
+            if (!validFiles[i]) {
+                //console.log("file ", i, " is invalid");
+                continue;
+            }
             let file = files[i];
             let item = {};
             item["src"] = file.webkitRelativePath;
             item["url"] = URL.createObjectURL(file);
-            let img = new Image();
-            img.onload = function () {
-                item["width"] = this.width;
-                item["height"] = this.height;
-                // width / height, >1 means width > height
-                item["ratio"] = this.width / this.height;
-            };
-            img.src = item["url"];
+            
+            // Check if the file is an image.
             if (file.type && file.type.match('image.*')) {
-                input.images.push(item);
+                item["type"] = IMAGE;
+                let img = new Image();
+                img.onload = function () {
+                    item["width"] = this.width;
+                    item["height"] = this.height;
+                    // width / height, >1 means width > height
+                    item["ratio"] = this.width / this.height;
+                    filesLoaded++;
+                    if (fileCount == filesLoaded) {
+                        allLoaded();
+                    }
+                };
+                img.src = item["url"];
+            } else if (file.type && file.type.match('text.*')) {
+                item["type"] = TEXT;
+                var fr = new FileReader();
+                //item["content"] = "hi";
+                fr.onload = (function(fr, item) {
+                    return function() {
+                        //console.log(fr.result);
+                        item["content"] = fr.result;
+                        filesLoaded++;
+                        if (fileCount == filesLoaded) {
+                            allLoaded();
+                        }
+                    }
+                })(fr, item);
+                fr.readAsText(file);
             }
+            input.push(item);
         }
     }
+}
 
+// must wait for all files to be loaded before optimizing
+function allLoaded(){
     // OPTIMIZE
     var output = optimize(input);
 
@@ -72,15 +115,23 @@ function generateWebsite() {
     let currRow;
     let currColNum = 0;
     let currRowNum = -1;
-    for (x in output.images) {
-        let imgJson = output.images[x];
-        let img = new Image();
-        let row = imgJson.style.row;
-        let col = imgJson.style.col;
-        let colSize = imgJson.style["col-size"];
-        img.src = output.images[x].url;
-        img.className += "col-" + colSize;
-        img.style.height = "fit-content";
+    for (x in output) {
+        let item = output[x];
+        let row = item.style.row;
+        let col = item.style.col;
+        let colSize = item.style["col-size"];
+        let docItem;
+        if (item.type == IMAGE) {
+            docItem = new Image();
+            docItem.src = item.url;
+            docItem.className += "col-" + colSize;
+            docItem.style.height = "fit-content";
+        } else {
+            docItem = doc.createElement('p');
+            docItem.innerHTML = item.content;
+            docItem.className = "col-" + colSize;
+        }
+        
         if (row > currRowNum) { // output should be in order
             // create row and append to container
             currRow = doc.createElement('div');
@@ -96,7 +147,7 @@ function generateWebsite() {
             currColNum = col;
         }
         // append image to row
-        currRow.append(img);
+        currRow.append(docItem);
         currColNum += colSize;
     }
     var iframeDoc = document.querySelector('iframe').contentDocument;
@@ -105,6 +156,7 @@ function generateWebsite() {
         iframeDoc.documentElement
     );
 }
+
 
 document.getElementById("filepicker").addEventListener("change", function (event) {
     // input has to be <10 mb
@@ -124,8 +176,8 @@ function optimize(input) {
     var col = 0;
     var rowCapacity = 12;
     var rowCapacities = [];
-    for (x in input.images) {
-        let image = input.images[x];
+    for (x in input) {
+        let item = input[x];
         // TODO randomize col size
         var colSize = 6;
         if (rowCapacity - colSize >= 0) {
@@ -137,7 +189,7 @@ function optimize(input) {
             col = 0;
             rowCapacity = 12 - colSize;
         }
-        image["style"] = {
+        item["style"] = {
             "row": row,
             "col": col,
             "col-size": colSize
@@ -145,7 +197,7 @@ function optimize(input) {
     }
     rowCapacities.push(rowCapacity);
     //console.log(rowCapacities);
-    console.log(input);
+    //console.log(input);
     return optimizeIter(input, 0.3, rowCapacities);
 }
 
@@ -175,11 +227,11 @@ function optimizeIter(input, threshold, rowCapacities) {
         let nextRowCapacities = JSON.parse(JSON.stringify(lastRowCapacities));
         let shuffleRows = [];
         // optimization moves
-        for (x in nextInput.images) {
-            let image = nextInput.images[x];
-            let origRow = nextInput.images[x].style.row;
-            let origCol = nextInput.images[x].style.col;
-            let origColSize = nextInput.images[x].style["col-size"];
+        for (x in nextInput) {
+            let item = nextInput[x];
+            let origRow = nextInput[x].style.row;
+            let origCol = nextInput[x].style.col;
+            let origColSize = nextInput[x].style["col-size"];
             let row = origRow;
             let col = origCol;
             let colSize = origColSize;
@@ -227,7 +279,7 @@ function optimizeIter(input, threshold, rowCapacities) {
                     shuffleRows[row] = true;
                 }
             }
-            image["style"] = {
+            item["style"] = {
                 "row": row,
                 "col": col,
                 "col-size": colSize
@@ -235,13 +287,13 @@ function optimizeIter(input, threshold, rowCapacities) {
         }
         let rowContent = [];
         // another pass to order elements, then another to set image column, reduce image rows
-        for (x in nextInput.images) {
-            let img = nextInput.images[x];
-            let row = img.style.row;
+        for (x in nextInput) {
+            let item = nextInput[x];
+            let row = item.style.row;
             if (Array.isArray(rowContent[row])) {
-                rowContent[row].push(img);
+                rowContent[row].push(item);
             } else {
-                rowContent[row] = [img];
+                rowContent[row] = [item];
             }
         }
         let ordered = [];
@@ -261,22 +313,22 @@ function optimizeIter(input, threshold, rowCapacities) {
                         let colCount = 0;
                         for (y in currRow) {
                             if (currRow[y] !== 0) { // if not spacer
-                                let img = currRow[y];
-                                img.style.col = colCount;
-                                img.style.row = rowCount;
+                                let item = currRow[y];
+                                item.style.col = colCount;
+                                item.style.row = rowCount;
                                 // push image into images array
-                                ordered.push(img);
-                                colCount += img.style["col-size"];
+                                ordered.push(item);
+                                colCount += item.style["col-size"];
                             } else { // spacer
                                 colCount++;
                             }
                         }
                     } else {
                         for (y in currRow) {
-                            let img = currRow[y];
-                            img.style.row = rowCount;
+                            let item = currRow[y];
+                            item.style.row = rowCount;
                             // push image into images array
-                            ordered.push(img);
+                            ordered.push(item);
                         }
                     }
                     rowCount++;
@@ -284,7 +336,7 @@ function optimizeIter(input, threshold, rowCapacities) {
             }
         }
         nextRowCapacities = newRowCapacities;
-        nextInput.images = ordered;
+        nextInput = ordered;
 
         // calculate new cost, replace if new < current
         let newCost = testCost(nextInput);
@@ -295,10 +347,10 @@ function optimizeIter(input, threshold, rowCapacities) {
         }
         //console.log(lastInput);
         //console.log(lastRowCapacities);
-        console.log(cost);
+        //console.log(cost);
         iter++;
     }
-    console.log(iter);
+    //console.log(iter);
     console.log(lastInput);
     return lastInput;
 }
@@ -324,21 +376,20 @@ function shuffle(array) {
 
 // test cost function, largest distance = least cost
 function testCost(input) {
-    if (input.images.length < 2) {
+    if (input.length < 2) {
         return 0;
     }
-    let images = input.images;
     let cost = 0;
-    for (x = 0; x < images.length - 1; x++) {
+    for (x = 0; x < input.length - 1; x++) {
         let y;
-        for (y = x + 1; y < images.length; y++) {
-            let rowX = images[x].style.row;
-            let colX = images[x].style.col;
-            let colSizeX = images[x].style["col-size"];
+        for (y = x + 1; y < input.length; y++) {
+            let rowX = input[x].style.row;
+            let colX = input[x].style.col;
+            let colSizeX = input[x].style["col-size"];
             let endColX = colX + colSizeX - 1;
-            let rowY = images[y].style.row;
-            let colY = images[y].style.col;
-            let colSizeY = images[y].style["col-size"];
+            let rowY = input[y].style.row;
+            let colY = input[y].style.col;
+            let colSizeY = input[y].style["col-size"];
             let endColY = colY + colSizeY - 1;
             let vertDist = Math.abs(rowY - rowX);
             let horizDist;
@@ -357,6 +408,6 @@ function testCost(input) {
         }
     }
     // average over number of pairs, (n*(n-1))/2
-    cost *= 2 / (images.length * (images.length - 1));
+    cost *= 2 / (input.length * (input.length - 1));
     return cost;
 }
