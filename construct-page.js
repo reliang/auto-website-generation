@@ -133,26 +133,27 @@ function allLoaded(){
         let item = output[x];
         let row = item.style.row;
         let col = item.style.col;
-        let colSize = item.style["col-size"];
+        let colSpan = item.style["col-span"];
+        let rowSpan = item.style["row-span"];
         let docItem;
         if (item.type == IMG) {
             docItem = new Image();
             docItem.src = item.url;
             docItem.style.width = "100%";
-            docItem.style.gridRow = "" + (row + 1) + " / span " + 1;
-            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSize;
+            docItem.style.gridRow = "" + (row + 1) + " / span " + rowSpan;
+            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSpan;
         } else if (item.type == P) {
             docItem = doc.createElement('p');
             docItem.innerHTML = item.content;
             docItem.className = "px-4 pb-4";
-            docItem.style.gridRow = "" + (row + 1) + " / span " + 1;
-            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSize;
+            docItem.style.gridRow = "" + (row + 1) + " / span " + rowSpan;
+            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSpan;
         } else if (item.type == H1) {
             docItem = doc.createElement('h1');
             docItem.innerHTML = item.content;
             docItem.className = "px-4 pb-4";
-            docItem.style.gridRow = "" + (row + 1) + " / span " + 1;
-            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSize;
+            docItem.style.gridRow = "" + (row + 1) + " / span " + rowSpan;
+            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSpan;
         }
         grid.append(docItem);
     }
@@ -188,37 +189,23 @@ function optimize(input) {
     // place images into grid
     var row = 0;
     var col = 0;
-    //var rowCapacity = 12;
-    //var rowCapacities = [];
     for (x in input) {
         let item = input[x];
         // TODO randomize col size, row & col
-        var colSize = 6;
-        /*
-        if (rowCapacity - colSize >= 0) {
-            col = 12 - rowCapacity;
-            rowCapacity -= colSize;
-        } else {
-            rowCapacities.push(rowCapacity);
-            row++;
-            col = 0;
-            rowCapacity = 12 - colSize;
-        }
-        */
+        var colSpan = 6;
+        var rowSpan = 1;
         item["style"] = {
             "row": 1,
             "col": 1,
-            "col-size": colSize
+            "col-span": colSpan,
+            "row-span": rowSpan
         }
     }
-    //rowCapacities.push(rowCapacity);
-    
-    //console.log(rowCapacities);
     //console.log(input);
-    return optimizeIter(input, 0.3/*, rowCapacities*/);
+    return optimizeIter(input);
 }
 
-function optimizeIter(input, threshold/*, rowCapacities*/) {
+function optimizeIter(input) {
 
     /**
      * Rules
@@ -226,7 +213,7 @@ function optimizeIter(input, threshold/*, rowCapacities*/) {
      * rows have mb
      * 
      * optimization moves
-     * 1. set image to random grid size between 3 to 9 (probability 0.3)
+     * 1. set image to random col span between 3 to 9 and row span between 1 to 3 (probability 0.3)
      * 2. change image row, with possibility to add row (probability 0.3)
      * 3. add div as spacer to change col of image (probability 0.3)
      * 
@@ -239,23 +226,30 @@ function optimizeIter(input, threshold/*, rowCapacities*/) {
     var cost = testCost(lastInput);
     var currRowMax = 1;
 
-    while (cost > threshold) {
+    while (cost > 0.3) {
         let nextInput = JSON.parse(JSON.stringify(lastInput));
         // optimization moves
         for (x in nextInput) {
             let item = nextInput[x];
             let origRow = nextInput[x].style.row;
             let origCol = nextInput[x].style.col;
-            let origColSize = nextInput[x].style["col-size"];
+            let origColSpan = nextInput[x].style["col-span"];
+            let origRowSpan = nextInput[x].style["row-span"];
             let row = origRow;
             let col = origCol;
-            let colSize = origColSize;
-            let moveImage = false;
+            let colSpan = origColSpan;
+            let rowSpan = origRowSpan;
             // set image to random grid size
             if (Math.random() < 0.3) {
-                colSize = 3 + Math.floor(Math.random() * 7);
-                if (col + colSize > 12) {
-                    col = 12 - colSize;
+                colSpan = 3 + Math.floor(Math.random() * 7);
+                if (col + colSpan > 12) {
+                    col = 12 - colSpan;
+                }
+            }
+            if (Math.random() < 0.3) {
+                rowSpan = 1 + Math.floor(Math.random() * 3);
+                if (currRowMax < rowSpan + row) {
+                    currRowMax = rowSpan + row;
                 }
             }
             // set image row
@@ -263,6 +257,9 @@ function optimizeIter(input, threshold/*, rowCapacities*/) {
                 // try to add image into an existing row
                 if (Math.random() < 0.8) {
                     row = Math.floor(Math.random() * currRowMax);
+                    if (currRowMax < rowSpan + row) {
+                        currRowMax = rowSpan + row;
+                    }
                 } else {
                     row = currRowMax;
                     currRowMax++;
@@ -270,19 +267,26 @@ function optimizeIter(input, threshold/*, rowCapacities*/) {
             }
             // set image col
             if (Math.random() < 0.3) {
-                col = Math.floor(Math.random() * (12 - colSize));
+                col = Math.floor(Math.random() * (12 - colSpan));
             }
             item["style"] = {
                 "row": row,
                 "col": col,
-                "col-size": colSize
+                "col-span": colSpan,
+                "row-span": rowSpan
             }
         }
         let rowContent = [];
         // another pass to order elements, then another to set image column, reduce image rows
+        let rowHasContent = new Array(currRowMax);
         for (x in nextInput) {
             let item = nextInput[x];
             let row = item.style.row;
+            let rowSpan = item.style["row-span"];
+            let i;
+            for (i = 0; i < rowSpan; i++) {
+                rowHasContent[row + i] = true;
+            }
             if (Array.isArray(rowContent[row])) {
                 rowContent[row].push(item);
             } else {
@@ -290,13 +294,17 @@ function optimizeIter(input, threshold/*, rowCapacities*/) {
             }
         }
         let rowCount = 0;
-        for (x in rowContent) {
-            let currRow = rowContent[x];
-            if (Array.isArray(currRow)) {
-                for (y in currRow) {
-                    let item = currRow[y];
-                    item.style.row = rowCount;
-                }               
+        let lastRow = 0;
+        for (x in rowHasContent) {
+            if (rowHasContent) {
+                let currRow = rowContent[x];
+                if (Array.isArray(currRow)) {
+                    for (y in currRow) {
+                        let item = currRow[y];
+                        item.style.row = rowCount;
+
+                    }
+                }
                 rowCount++;
             }
         }
@@ -346,14 +354,18 @@ function testCost(input) {
         let y;
         for (y = x + 1; y < input.length; y++) {
             let rowX = input[x].style.row;
+            let rowSpanX = input[x].style["row-span"];
+            let endRowX = rowX + rowSpanX - 1;
             let colX = input[x].style.col;
-            let colSizeX = input[x].style["col-size"];
-            let endColX = colX + colSizeX - 1;
+            let colSpanX = input[x].style["col-span"];
+            let endColX = colX + colSpanX - 1;
             let rowY = input[y].style.row;
+            let rowSpanY = input[y].style["row-span"];
+            let endRowY = rowY + rowSpanY - 1;
             let colY = input[y].style.col;
-            let colSizeY = input[y].style["col-size"];
-            let endColY = colY + colSizeY - 1;
-            let vertDist = Math.abs(rowY - rowX);
+            let colSpanY = input[y].style["col-span"];
+            let endColY = colY + colSpanY - 1;
+            let vertDist;
             let horizDist;
             // no vertical overlap
             if (endColX < colY) {
@@ -364,7 +376,18 @@ function testCost(input) {
                 // between 0 and 1 depending on amount of overlap
                 let overlap = Math.min(endColX, endColY) - Math.max(colX, colY) + 1;
                 // average the overlap fraction of the two
-                horizDist = ((1 - overlap / colSizeX) + (1 - overlap / colSizeY)) / 2; //TODO
+                horizDist = ((1 - overlap / colSpanX) + (1 - overlap / colSpanY)) / 2;
+            }
+            // no horiz overlap
+            if (endRowX < rowY) {
+                vertDist = rowY - endRowX;
+            } else if (endRowY < rowX) {
+                vertDist = rowX - endRowY;
+            } else {
+                // between 0 and 1 depending on amount of overlap
+                let overlap = Math.min(endRowX, endRowY) - Math.max(rowX, rowY) + 1;
+                // average the overlap fraction of the two
+                vertDist = ((1 - overlap / rowSpanX) + (1 - overlap / rowSpanY)) / 2;
             }
             cost += 1 / (horizDist + vertDist);
         }
@@ -387,12 +410,12 @@ function distributionCost(input) {
         for (y = x + 1; y < input.length; y++) {
             let rowX = input[x].style.row;
             let colX = input[x].style.col;
-            let colSizeX = input[x].style["col-size"];
-            let endColX = colX + colSizeX - 1;
+            let colSpanX = input[x].style["col-span"];
+            let endColX = colX + colSpanX - 1;
             let rowY = input[y].style.row;
             let colY = input[y].style.col;
-            let colSizeY = input[y].style["col-size"];
-            let endColY = colY + colSizeY - 1;
+            let colSpanY = input[y].style["col-span"];
+            let endColY = colY + colSpanY - 1;
             let vertDist = Math.abs(rowY - rowX);
             let horizDist;
             // no vertical overlap
@@ -404,7 +427,7 @@ function distributionCost(input) {
                 // between 0 and 1 depending on amount of overlap
                 let overlap = Math.min(endColX, endColY) - Math.max(colX, colY) + 1;
                 // average the overlap fraction of the two
-                horizDist = ((1 - overlap / colSizeX) + (1 - overlap / colSizeY)) / 2; //TODO
+                horizDist = ((1 - overlap / colSpanX) + (1 - overlap / colSpanY)) / 2; //TODO
             }
             let currDist = Math.sqrt(horizDist * horizDist + vertDist * vertDist);
             sum += currDist;
