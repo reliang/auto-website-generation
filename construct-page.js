@@ -15,8 +15,13 @@ window.onload = () => {
  * Write code to test convergence
  */
 
-const IMAGE = 0;
-const TEXT = 1;
+const IMG = 0;
+const P = 1;
+const H1 = 2;
+
+const h1 = /^# (.*$)/gim; // captures title
+const p = /^(?!(!\[.*?\]\(.*?\))|[#\n])(.*$)/gm;// no lines starting with ![Any text](Any text), # any text, or \n
+const image = /!\[.*?\]\((.*?)\)/gim; // captures url
 
 var files;
 var input;
@@ -43,6 +48,11 @@ function generateWebsite() {
                 fileCount++;
                 validFiles[i] = true;
             }
+            // test
+            /*
+            if (getFileName(file.webkitRelativePath) === "content.txt") {
+            }
+            */
         }
         
         for (let i = 0; i < files.length; i++) {
@@ -57,7 +67,7 @@ function generateWebsite() {
             
             // Check if the file is an image.
             if (file.type && file.type.match('image.*')) {
-                item["type"] = IMAGE;
+                item["type"] = IMG;
                 let img = new Image();
                 img.onload = function () {
                     item["width"] = this.width;
@@ -71,7 +81,11 @@ function generateWebsite() {
                 };
                 img.src = item["url"];
             } else if (file.type && file.type.match('text.*')) {
-                item["type"] = TEXT;
+                if (getFileName(item["src"]) === "h1.txt") {
+                    item["type"] = H1;
+                } else {
+                    item["type"] = P;
+                }
                 var fr = new FileReader();
                 //item["content"] = "hi";
                 fr.onload = (function(fr, item) {
@@ -121,21 +135,25 @@ function allLoaded(){
         let col = item.style.col;
         let colSize = item.style["col-size"];
         let docItem;
-        if (item.type == IMAGE) {
+        if (item.type == IMG) {
             docItem = new Image();
             docItem.src = item.url;
             docItem.className += "col-" + colSize;
             docItem.style.height = "fit-content";
-        } else {
+        } else if (item.type == P) {
             docItem = doc.createElement('p');
             docItem.innerHTML = item.content;
-            docItem.className = "col-" + colSize;
+            docItem.className = "col-" + colSize + " px-2 pb-3";
+        } else if (item.type == H1) {
+            docItem = doc.createElement('h1');
+            docItem.innerHTML = item.content;
+            docItem.className = "col-" + colSize + " px-2 pb-3";
         }
         
         if (row > currRowNum) { // output should be in order
             // create row and append to container
             currRow = doc.createElement('div');
-            currRow.className += "row gx-0";
+            currRow.className += "row gx-0"; // add gx-0 to eliminate gutter
             container.append(currRow);
             currRowNum++;
             currColNum = 0;
@@ -157,7 +175,6 @@ function allLoaded(){
     );
 }
 
-
 document.getElementById("filepicker").addEventListener("change", function (event) {
     // input has to be <10 mb
     if (event.target.files[0].size > 10485760) {
@@ -168,6 +185,15 @@ document.getElementById("filepicker").addEventListener("change", function (event
     }
 
 });
+
+function getFileName(fullPath) {
+    var startIndex = (fullPath.indexOf('\\') >= 0 ? fullPath.lastIndexOf('\\') : fullPath.lastIndexOf('/'));
+    var filename = fullPath.substring(startIndex);
+    if (filename.indexOf('\\') === 0 || filename.indexOf('/') === 0) {
+        filename = filename.substring(1);
+    }
+    return filename;
+}
 
 function optimize(input) {
     // set up image width to 100%, since we are using grids
@@ -350,7 +376,7 @@ function optimizeIter(input, threshold, rowCapacities) {
         //console.log(cost);
         iter++;
     }
-    //console.log(iter);
+    console.log(iter);
     console.log(lastInput);
     return lastInput;
 }
@@ -410,4 +436,44 @@ function testCost(input) {
     // average over number of pairs, (n*(n-1))/2
     cost *= 2 / (input.length * (input.length - 1));
     return cost;
+}
+
+function distributionCost(input) {
+    if (input.length < 2) {
+        return 0;
+    }
+    let dist = [];
+    let cost = 0;
+    let sum = 0;
+    // compute mean dist
+    for (x = 0; x < input.length - 1; x++) {
+        let y;
+        for (y = x + 1; y < input.length; y++) {
+            let rowX = input[x].style.row;
+            let colX = input[x].style.col;
+            let colSizeX = input[x].style["col-size"];
+            let endColX = colX + colSizeX - 1;
+            let rowY = input[y].style.row;
+            let colY = input[y].style.col;
+            let colSizeY = input[y].style["col-size"];
+            let endColY = colY + colSizeY - 1;
+            let vertDist = Math.abs(rowY - rowX);
+            let horizDist;
+            // no vertical overlap
+            if (endColX < colY) {
+                horizDist = colY - endColX;
+            } else if (endColY < colX) {
+                horizDist = colX - endColY;
+            } else {
+                // between 0 and 1 depending on amount of overlap
+                let overlap = Math.min(endColX, endColY) - Math.max(colX, colY) + 1;
+                // average the overlap fraction of the two
+                horizDist = ((1 - overlap / colSizeX) + (1 - overlap / colSizeY)) / 2; //TODO
+            }
+            let currDist = Math.sqrt(horizDist * horizDist + vertDist * vertDist);
+            sum += currDist;
+            dist.push(currDist);
+        }
+    }
+    // compute variance
 }
