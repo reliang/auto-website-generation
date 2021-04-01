@@ -25,6 +25,7 @@ const image = /!\[.*?\]\((.*?)\)/gim; // captures url
 
 var files;
 var input;
+var numRows;
 
 function generateWebsite() {
     // init json
@@ -121,14 +122,13 @@ function allLoaded(){
     link.integrity = "sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl";
     link.crossOrigin = "anonymous";
     headID.appendChild(link);
-    // create document container
-    var container = doc.createElement('div');
-    container.className = "container-fluid";
-    doc.body.append(container);
-    // add images to row array
-    let currRow;
-    let currColNum = 0;
-    let currRowNum = -1;
+    // create document grid
+    var grid = doc.createElement('div');
+    grid.style.display = "grid";
+    grid.style.gridTemplateColumns = "repeat(12, 8.33%)";
+    grid.style.gridTemplateRows = "repeat(" + numRows + ", auto)";
+    doc.body.append(grid);
+    // add images to grid
     for (x in output) {
         let item = output[x];
         let row = item.style.row;
@@ -138,35 +138,23 @@ function allLoaded(){
         if (item.type == IMG) {
             docItem = new Image();
             docItem.src = item.url;
-            docItem.className += "col-" + colSize;
-            docItem.style.height = "fit-content";
+            docItem.style.width = "100%";
+            docItem.style.gridRow = "" + (row + 1) + " / span " + 1;
+            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSize;
         } else if (item.type == P) {
             docItem = doc.createElement('p');
             docItem.innerHTML = item.content;
-            docItem.className = "col-" + colSize + " px-2 pb-3";
+            docItem.className = "px-4 pb-4";
+            docItem.style.gridRow = "" + (row + 1) + " / span " + 1;
+            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSize;
         } else if (item.type == H1) {
             docItem = doc.createElement('h1');
             docItem.innerHTML = item.content;
-            docItem.className = "col-" + colSize + " px-2 pb-3";
+            docItem.className = "px-4 pb-4";
+            docItem.style.gridRow = "" + (row + 1) + " / span " + 1;
+            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSize;
         }
-        
-        if (row > currRowNum) { // output should be in order
-            // create row and append to container
-            currRow = doc.createElement('div');
-            currRow.className += "row gx-0"; // add gx-0 to eliminate gutter
-            container.append(currRow);
-            currRowNum++;
-            currColNum = 0;
-        }
-        if (col > currColNum) {
-            let spacer = doc.createElement('div');
-            spacer.className = "col-" + (col - currColNum);
-            currRow.append(spacer);
-            currColNum = col;
-        }
-        // append image to row
-        currRow.append(docItem);
-        currColNum += colSize;
+        grid.append(docItem);
     }
     var iframeDoc = document.querySelector('iframe').contentDocument;
     iframeDoc.replaceChild(
@@ -200,12 +188,13 @@ function optimize(input) {
     // place images into grid
     var row = 0;
     var col = 0;
-    var rowCapacity = 12;
-    var rowCapacities = [];
+    //var rowCapacity = 12;
+    //var rowCapacities = [];
     for (x in input) {
         let item = input[x];
-        // TODO randomize col size
+        // TODO randomize col size, row & col
         var colSize = 6;
+        /*
         if (rowCapacity - colSize >= 0) {
             col = 12 - rowCapacity;
             rowCapacity -= colSize;
@@ -215,19 +204,21 @@ function optimize(input) {
             col = 0;
             rowCapacity = 12 - colSize;
         }
+        */
         item["style"] = {
-            "row": row,
-            "col": col,
+            "row": 1,
+            "col": 1,
             "col-size": colSize
         }
     }
-    rowCapacities.push(rowCapacity);
+    //rowCapacities.push(rowCapacity);
+    
     //console.log(rowCapacities);
     //console.log(input);
-    return optimizeIter(input, 0.3, rowCapacities);
+    return optimizeIter(input, 0.3/*, rowCapacities*/);
 }
 
-function optimizeIter(input, threshold, rowCapacities) {
+function optimizeIter(input, threshold/*, rowCapacities*/) {
 
     /**
      * Rules
@@ -245,13 +236,11 @@ function optimizeIter(input, threshold, rowCapacities) {
 
     var iter = 0;
     var lastInput = JSON.parse(JSON.stringify(input));
-    var lastRowCapacities = JSON.parse(JSON.stringify(rowCapacities));
     var cost = testCost(lastInput);
+    var currRowMax = 1;
 
     while (cost > threshold) {
         let nextInput = JSON.parse(JSON.stringify(lastInput));
-        let nextRowCapacities = JSON.parse(JSON.stringify(lastRowCapacities));
-        let shuffleRows = [];
         // optimization moves
         for (x in nextInput) {
             let item = nextInput[x];
@@ -265,45 +254,23 @@ function optimizeIter(input, threshold, rowCapacities) {
             // set image to random grid size
             if (Math.random() < 0.3) {
                 colSize = 3 + Math.floor(Math.random() * 7);
-                if (colSize > nextRowCapacities[origRow] + origColSize || colSize + col > 12) {
-                    // move image
-                    moveImage = true;
-                    // will be negative, but will be fixed in the next section
-                    nextRowCapacities[origRow] = nextRowCapacities[origRow] + origColSize - colSize;
-                } else {
-                    nextRowCapacities[origRow] = nextRowCapacities[origRow] + origColSize - colSize;
+                if (col + colSize > 12) {
+                    col = 12 - colSize;
                 }
             }
             // set image row
-            if (moveImage || Math.random() < 0.3) {
-                let newRow = false;
+            if (Math.random() < 0.3) {
                 // try to add image into an existing row
                 if (Math.random() < 0.8) {
-                    newRow = false;
-                    let rowsAvailable = [];
-                    for (y in nextRowCapacities) {
-                        if (colSize <= nextRowCapacities[y]) {
-                            rowsAvailable.push(parseInt(y));
-                        }
-                    }
-                    if (rowsAvailable.length == 0) {
-                        newRow = true;
-                    } else {
-                        rowIdx = Math.floor(Math.random() * rowsAvailable.length);
-                        row = rowsAvailable[rowIdx];
-                        nextRowCapacities[row] = nextRowCapacities[row] - colSize;
-                        nextRowCapacities[origRow] = nextRowCapacities[origRow] + colSize;
-                        shuffleRows[row] = true;
-                    }
+                    row = Math.floor(Math.random() * currRowMax);
                 } else {
-                    newRow = true;
+                    row = currRowMax;
+                    currRowMax++;
                 }
-                if (newRow) { // add new row
-                    row = nextRowCapacities.length;
-                    nextRowCapacities[origRow] = nextRowCapacities[origRow] + colSize;
-                    nextRowCapacities.push(12 - colSize);
-                    shuffleRows[row] = true;
-                }
+            }
+            // set image col
+            if (Math.random() < 0.3) {
+                col = Math.floor(Math.random() * (12 - colSize));
             }
             item["style"] = {
                 "row": row,
@@ -322,57 +289,26 @@ function optimizeIter(input, threshold, rowCapacities) {
                 rowContent[row] = [item];
             }
         }
-        let ordered = [];
         let rowCount = 0;
-        let newRowCapacities = [];
-        let shuffleRow = false;
         for (x in rowContent) {
             let currRow = rowContent[x];
             if (Array.isArray(currRow)) {
-                let currRowCapacity = nextRowCapacities[x];
-                if (currRowCapacity != 12) { // if row isn't empty
-                    newRowCapacities.push(currRowCapacity);
-                    if (shuffleRows[x] || Math.random() < 0.3) { // shuffle column
-                        // use 0 to signify div column of size 1
-                        currRow.push(...Array(currRowCapacity).fill(0));
-                        shuffle(currRow);
-                        let colCount = 0;
-                        for (y in currRow) {
-                            if (currRow[y] !== 0) { // if not spacer
-                                let item = currRow[y];
-                                item.style.col = colCount;
-                                item.style.row = rowCount;
-                                // push image into images array
-                                ordered.push(item);
-                                colCount += item.style["col-size"];
-                            } else { // spacer
-                                colCount++;
-                            }
-                        }
-                    } else {
-                        for (y in currRow) {
-                            let item = currRow[y];
-                            item.style.row = rowCount;
-                            // push image into images array
-                            ordered.push(item);
-                        }
-                    }
-                    rowCount++;
-                }
+                for (y in currRow) {
+                    let item = currRow[y];
+                    item.style.row = rowCount;
+                }               
+                rowCount++;
             }
         }
-        nextRowCapacities = newRowCapacities;
-        nextInput = ordered;
+        numRows = rowCount;
 
         // calculate new cost, replace if new < current
         let newCost = testCost(nextInput);
         if (newCost < cost) {
             lastInput = nextInput;
-            lastRowCapacities = nextRowCapacities;
             cost = newCost;
         }
         //console.log(lastInput);
-        //console.log(lastRowCapacities);
         //console.log(cost);
         iter++;
     }
