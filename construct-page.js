@@ -15,11 +15,15 @@ window.onload = () => {
  * Write code to test convergence
  */
 
-const NUM_COL = 14;
+const NUM_COL = 12;
 
 const IMG = 0;
 const P = 1;
 const H1 = 2;
+const LOGO = 3;
+const BUTTON = 4;
+const BG = 5;
+const H3 = 6;
 
 const h1 = /^# (.*$)/gim; // captures title
 const p = /^(?!(!\[.*?\]\(.*?\))|[#\n])(.*$)/gm;// no lines starting with ![Any text](Any text), # any text, or \n
@@ -27,11 +31,13 @@ const image = /!\[.*?\]\((.*?)\)/gim; // captures url
 
 var files;
 var input;
+var elements; // elements that don't need optimization
 var numRows;
 
 function generateWebsite() {
     // init json
     input = [];
+    elements = [];
 
     // have to wait for everything to load
     let fileCount = 0;
@@ -57,7 +63,13 @@ function generateWebsite() {
             }
             */
         }
-        
+
+        let idx = 0;
+        let h1Idx = -1;
+        let h3Idx = -1;
+        let pIdx = -1;
+        let buttonIdx = -1;
+
         for (let i = 0; i < files.length; i++) {
             if (!validFiles[i]) {
                 //console.log("file ", i, " is invalid");
@@ -67,10 +79,17 @@ function generateWebsite() {
             let item = {};
             item["src"] = file.webkitRelativePath;
             item["url"] = URL.createObjectURL(file);
-            
+
             // Check if the file is an image.
             if (file.type && file.type.match('image.*')) {
-                item["type"] = IMG;
+                //console.log(getFileNameNoExtension(item["src"]));
+                if (getFileNameNoExtension(item["src"]) === "logo") {
+                    item["type"] = LOGO;
+                } else if (getFileNameNoExtension(item["src"]) === "background") {
+                    item["type"] = BG; // TODO: display background
+                } else {
+                    item["type"] = IMG;
+                }
                 let img = new Image();
                 img.onload = function () {
                     item["width"] = this.width;
@@ -86,13 +105,21 @@ function generateWebsite() {
             } else if (file.type && file.type.match('text.*')) {
                 if (getFileName(item["src"]) === "h1.txt") {
                     item["type"] = H1;
+                    h1Idx = idx;
+                } else if (getFileName(item["src"]) === "h3.txt") {
+                    item["type"] = H3;
+                    h3Idx = idx;
+                } else if (getFileName(item["src"]) === "button.txt") {
+                    item["type"] = BUTTON;
+                    buttonIdx = idx;
                 } else {
                     item["type"] = P;
+                    pIdx = idx;
                 }
                 var fr = new FileReader();
                 //item["content"] = "hi";
-                fr.onload = (function(fr, item) {
-                    return function() {
+                fr.onload = (function (fr, item) {
+                    return function () {
                         //console.log(fr.result);
                         item["content"] = fr.result;
                         filesLoaded++;
@@ -103,34 +130,102 @@ function generateWebsite() {
                 })(fr, item);
                 fr.readAsText(file);
             }
-            input.push(item);
+            if (item["type"] === LOGO || item["type"] === BG) {
+                elements.push(item);
+            } else {
+                input.push(item);
+                idx++;
+            }
+            
         }
+        // connect parent-child
+        if (buttonIdx != -1) {
+            let item = input[buttonIdx];
+            if (pIdx != -1) {
+                item["parent"] = pIdx;
+            } else if (h1Idx != -1) {
+                item["parent"] = h1Idx;
+            }
+        }
+        if (pIdx != -1) {
+            let item = input[pIdx];
+            if (h1Idx != -1) {
+                item["parent"] = h1Idx;
+            }
+        }
+
     }
 }
 
 // must wait for all files to be loaded before optimizing
-function allLoaded(){
+function allLoaded() {
     // OPTIMIZE
     var output = optimize(input);
 
     // DISPLAY
     // generate website from JSON object
     var doc = document.implementation.createHTMLDocument();
-    // add bootstrap to head
+    // add meta tag to head
     var headID = doc.getElementsByTagName('head')[0];
+    var meta = doc.createElement('meta');
+    meta.name = "viewport";
+    meta.content = "width=device-width, initial-scale=1";
+    headID.appendChild(meta);
+    // add bootstrap to head
     var link = doc.createElement('link');
     link.rel = 'stylesheet';
     link.href = "https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css";
     link.integrity = "sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl";
     link.crossOrigin = "anonymous";
     headID.appendChild(link);
+    // create CSS classes
+    var docStyle = document.createElement('style');
+    docStyle.type = 'text/css';
+    docStyle.innerHTML += '.vertical-center {margin: 0; position: absolute; top: 50%; -ms-transform: translateY(-50%); transform: translateY(-50%);}';
+    docStyle.innerHTML += '.button {background-color: #000000; border: none; color: white; padding: 10px 25px; text-align: center; text-decoration: none; display: inline-block; margin: 4px 2px; cursor: pointer; border-radius: 25px;}';
+    doc.getElementsByTagName('head')[0].appendChild(docStyle);
+    // create document container w/ margins
+    var container = doc.createElement('div');
+    container.style.display = "grid";
+    container.style.gridTemplateColumns = "8.33% auto 8.33%";
+    let vh = document.getElementsByTagName("IFRAME")[0].offsetHeight;
+    let navHeight = 70;
+    let landingHeight = vh - navHeight;
+    container.style.gridTemplateRows = navHeight + "px " + landingHeight + "px";
+    container.style.position = "relative";
+    doc.body.append(container);
+    // add navbar
+    let nav = doc.createElement('div');
+    nav.style.gridColumn = "2";
+    nav.style.gridRow = "1";
+    nav.style.display = "grid";
+    nav.style.gridTemplateColumns = "auto auto";
+    nav.style.gridTemplateRows = "auto";
+    container.append(nav);
+    // add procedural elements to navbar
+    for (x in elements) {
+        let item = elements[x];
+        let docItem;
+        if (item.type == LOGO) {
+            docItem = new Image();
+            docItem.src = item.url;
+            docItem.style.paddingTop = "10px"
+            docItem.style.height = navHeight - 20 + "px";
+            docItem.style.gridRow = "1";
+            docItem.style.gridColumn = "1";
+        }
+        nav.append(docItem);
+    }
     // create document grid
     var grid = doc.createElement('div');
+    grid.style.gridColumn = "2 / 3";
+    grid.style.gridRow = "2 / 3";
     grid.style.display = "grid";
     grid.style.gridTemplateColumns = "repeat(" + NUM_COL + ", " + 100 / NUM_COL + "%)";
-    grid.style.gridTemplateRows = "repeat(" + numRows + ", auto)";
-    doc.body.append(grid);
-    // add images to grid
+    grid.style.gridAutoRows = "minmax(min-content, max-content)";
+    grid.className = "vertical-center";
+    container.append(grid);
+    // add items to grid
     for (x in output) {
         let item = output[x];
         let row = item.style.row;
@@ -142,21 +237,28 @@ function allLoaded(){
             docItem = new Image();
             docItem.src = item.url;
             docItem.style.width = "100%";
-            docItem.style.gridRow = "" + (row + 1) + " / span " + rowSpan;
-            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSpan;
+            docItem.className = "px-2 pb-2";
         } else if (item.type == P) {
             docItem = doc.createElement('p');
             docItem.innerHTML = item.content;
-            docItem.className = "px-4 pb-4";
-            docItem.style.gridRow = "" + (row + 1) + " / span " + rowSpan;
-            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSpan;
+            docItem.className = "px-4 pb-2";
         } else if (item.type == H1) {
             docItem = doc.createElement('h1');
             docItem.innerHTML = item.content;
-            docItem.className = "px-4 pb-4";
-            docItem.style.gridRow = "" + (row + 1) + " / span " + rowSpan;
-            docItem.style.gridColumn = "" + (col + 1) + " / span " + colSpan;
+            docItem.className = "px-4 pb-2";
+        } else if (item.type == BUTTON) {
+            docItem = doc.createElement('button');
+            docItem.innerHTML = item.content;
+            docItem.className = "mx-4 mb-2 button";
+            docItem.style.alignSelf = "start";
+            docItem.style.justifySelf = "start";
+        } else if (item.type == H3) {
+            docItem = doc.createElement('h3');
+            docItem.innerHTML = item.content;
+            docItem.className = "px-4 pb-2";
         }
+        docItem.style.gridRow = "" + (row + 1) + " / span " + rowSpan;
+        docItem.style.gridColumn = "" + (col + 1) + " / span " + colSpan;
         grid.append(docItem);
     }
     var iframeDoc = document.querySelector('iframe').contentDocument;
@@ -186,6 +288,12 @@ function getFileName(fullPath) {
     return filename;
 }
 
+function getFileNameNoExtension(fullPath) {
+    var filename = getFileName(fullPath);
+    var newFilename = filename.replace(/\.[^/.]+$/, "");
+    return newFilename;
+}
+
 function optimize(input) {
     // set up image width to 100%, since we are using grids
     // place images into grid
@@ -207,8 +315,6 @@ function optimize(input) {
     return optimizeIter(input);
 }
 
-
-// TODO: procedurally place parent H1 and text P
 function optimizeIter(input) {
 
     /**
@@ -228,11 +334,14 @@ function optimizeIter(input) {
 
     var iter = 0;
     var lastInput = JSON.parse(JSON.stringify(input));
-    var cost = overallCost(lastInput);
+    var costs = costSummary(lastInput);
+    var cost = costs.overall;
     var currRowMax = 1;
 
-    while (cost > 1.2 && iter < 1000) {
+    while (cost > 1 && iter < 1000) {
         let nextInput = JSON.parse(JSON.stringify(lastInput));
+        let pIdx = -1;
+        let buttonIdx = -1;
         // optimization moves
         for (x in nextInput) {
             let item = nextInput[x];
@@ -244,37 +353,76 @@ function optimizeIter(input) {
             let col = origCol;
             let colSpan = origColSpan;
             let rowSpan = origRowSpan;
-            // set item to random col span
-            if (Math.random() < 0.2) {
-                colSpan = 4 + Math.floor(Math.random() * 5);
-                if (col + colSpan > NUM_COL) {
-                    col = NUM_COL - colSpan;
+            // if element has parent, keep idx (TODO: idx unchaging)
+            if (nextInput[x].parent != null && nextInput[x].parent != undefined) {
+                if (nextInput[x].type == P) {
+                    pIdx = x;
+                } else if (nextInput[x].type == BUTTON) {
+                    buttonIdx = x;
                 }
-            }
-            // set image to random row span
-            if (Math.random() < 0.2 && item.type == IMG) {
-                rowSpan = 1 + Math.floor(Math.random() * 3);
-                if (currRowMax < rowSpan + row) {
-                    currRowMax = rowSpan + row;
+            } else {
+                // set item to random col span
+                if (Math.random() < 0.2) {
+                    colSpan = 4 + Math.floor(Math.random() * 5);
+                    if (col + colSpan > NUM_COL) {
+                        col = NUM_COL - colSpan;
+                    }
                 }
-            }
-            // set item row
-            if (Math.random() < 0.2) {
-                // try to add item into an existing row
-                if (Math.random() < 0.9) {
-                    row = Math.floor(Math.random() * currRowMax);
+                // set image to random row span
+                if (Math.random() < 0.2 && item.type == IMG) {
+                    rowSpan = 1 + Math.floor(Math.random() * 3);
                     if (currRowMax < rowSpan + row) {
                         currRowMax = rowSpan + row;
                     }
-                } else {
-                    row = currRowMax;
-                    currRowMax++;
+                }
+                // set item row
+                if (Math.random() < 0.2) {
+                    // try to add item into an existing row
+                    if (Math.random() < 0.9) {
+                        row = Math.floor(Math.random() * currRowMax);
+                        if (currRowMax < rowSpan + row) {
+                            currRowMax = rowSpan + row;
+                        }
+                    } else {
+                        row = currRowMax;
+                        currRowMax++;
+                    }
+                }
+                // set item col
+                if (Math.random() < 0.2) {
+                    col = Math.floor(Math.random() * (NUM_COL - colSpan));
                 }
             }
-            // set item col
-            if (Math.random() < 0.2) {
-                col = Math.floor(Math.random() * (NUM_COL - colSpan));
+
+            item["style"] = {
+                "row": row,
+                "col": col,
+                "col-span": colSpan,
+                "row-span": rowSpan
             }
+        }
+        // set P to be row under parent (H1), with same col and colspan
+        if (pIdx != -1) {
+            let item = nextInput[pIdx];
+            let parentIdx = item.parent;
+            let row = nextInput[parentIdx].style.row + 1;
+            let col = nextInput[parentIdx].style.col;
+            let colSpan = nextInput[parentIdx].style["col-span"];
+            let rowSpan = 1;
+            item["style"] = {
+                "row": row,
+                "col": col,
+                "col-span": colSpan,
+                "row-span": rowSpan
+            }
+        }
+        if (buttonIdx != -1) {
+            let item = nextInput[buttonIdx];
+            let parentIdx = item.parent;
+            let row = nextInput[parentIdx].style.row + 1;
+            let col = nextInput[parentIdx].style.col;
+            let colSpan = nextInput[parentIdx].style["col-span"];
+            let rowSpan = 1;
             item["style"] = {
                 "row": row,
                 "col": col,
@@ -283,6 +431,19 @@ function optimizeIter(input) {
             }
         }
         let rowContent = [];
+        for (x in nextInput) {
+            // if element has parent (have to make sure parent is already processed)
+            if (nextInput[x].parent != null && nextInput[x].parent != undefined) {
+                //console.log("has parent");
+                // set P to be row under parent (H1), with same col and colspan
+                if (nextInput[x].type == P || nextInput[x].type == BUTTON) {
+                    parentIdx = nextInput[x].parent;
+                    row = nextInput[parentIdx].style.row + 1;
+                    col = nextInput[parentIdx].style.col;
+                    colSpan = nextInput[parentIdx].style["col-span"];
+                }
+            }
+        }
         // another pass to order elements, then another to reduce empty rows
         let rowHasContent = new Array(currRowMax);
         for (x in nextInput) {
@@ -317,18 +478,21 @@ function optimizeIter(input) {
         numRows = rowCount;
 
         // calculate new cost, replace if new < current
-        let newCost = overallCost(nextInput);
+        let newCosts = costSummary(nextInput);
+        let newCost = newCosts.overall;
         if (newCost < cost) {
             lastInput = nextInput;
             cost = newCost;
+            costs = newCosts;
         }
         //console.log(lastInput);
-        console.log(cost);
+        //console.log(cost);
         iter++;
     }
     console.log(iter);
-    //console.log(cost);
+    console.log(cost);
     console.log(lastInput);
+    console.log(costs);
     return lastInput;
 }
 
@@ -352,11 +516,28 @@ function shuffle(array) {
 }
 
 function overallCost(input) {
-    let cost = 3 * clearanceCost(input) + 1 * distributionCost(input) + 1 * pageMarginCost(input) + 1 * spaceUsageCost(input) + 3 * alignmentCost(input) + 1 * textProximityCost(input);
+    let cost = 3 * clearanceCost(input) + 1 * distributionCost(input) + 4 * spaceUsageCost(input) + 2 * alignmentCost(input);
     //let cost = 1 * clearanceCost(input);
     //console.log("total cost: " + cost);
     return cost;
 }
+
+function costSummary(input) {
+    let clearance = 3 * clearanceCost(input);
+    let distribution = 1 * distributionCost(input);
+    let spaceUsage = 4 * spaceUsageCost(input);
+    let alignment = 2 * alignmentCost(input);
+    let overallCost = clearance + distribution + spaceUsage + alignment;
+    let cost = {
+        "overall" : overallCost,
+        "clearance" : clearance,
+        "distribution" : distribution,
+        "space-usage" : spaceUsage,
+        "alignment" : alignment
+    }
+    return cost;
+}
+
 
 // test cost function, largest L1 = least cost
 function testCost(input) {
@@ -395,7 +576,6 @@ function spaceUsageCost(input) {
 
 
 // TODO: incorporate probability of title aligning with top of image etc.?
-// TODO: text to right of title is less cost than text to left of title
 function alignmentCost(input) {
     if (input.length < 2) {
         return 0;
@@ -418,6 +598,7 @@ function alignmentCost(input) {
             let rowY = input[y].style.row;
             let rowSpanY = input[y].style["row-span"];
             let endRowY = rowY + rowSpanY - 1;
+            /*
             if (isText(input[x].type) && isText(input[y].type)) {
                 if (colX != colY) {
                     currCost += 2;
@@ -427,14 +608,13 @@ function alignmentCost(input) {
                 }
                 cost += currCost / 3;
                 numPairs++;
-            } else if (input[x].type == H1 || input[y].type == H1) {
+            } 
+            */
+            if (hasParent(input[x].type) || hasParent(input[y].type)) {
+                continue;
+            }
+            if (input[x].type == H1 || input[y].type == H1) {
                 if (rowX != rowY) {
-                    currCost++;
-                }
-                cost += currCost;
-                numPairs++;
-            } else if (input[x].type == P || input[y].type == P) {
-                if (endRowX != endRowY) {
                     currCost++;
                 }
                 cost += currCost;
@@ -448,7 +628,7 @@ function alignmentCost(input) {
     return cost;
 }
 
-// TODO: title above text, and title close to text
+// title above text, and title close to text
 function textProximityCost(input) {
     if (input.length < 2) {
         return 0;
@@ -475,16 +655,16 @@ function textProximityCost(input) {
                 if (rowX > rowY - 1) {
                     currCost += rowX - (rowY - 1);
                 }
-                if (rowX < rowY - 1 ) {
-                    currCost += 1/2 * ((rowY - 1) - rowX);
+                if (rowX < rowY - 1) {
+                    currCost += 1 / 2 * ((rowY - 1) - rowX);
                 }
                 numPairs++;
             } else if (input[y].type == H1 && input[x].type == P) {
                 if (rowY > rowX - 1) {
                     currCost += rowY - (rowX - 1);
                 }
-                if (rowY < rowX - 1 ) {
-                    currCost += 1/2 * ((rowX - 1) - rowY);
+                if (rowY < rowX - 1) {
+                    currCost += 1 / 2 * ((rowX - 1) - rowY);
                 }
                 numPairs++;
             }
@@ -503,6 +683,14 @@ function isText(type) {
     }
 }
 
+function hasParent(type) {
+    if (type == P || type == BUTTON) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 function pageMarginCost(input) {
     let cost = 0;
     let numItems = 0;
@@ -514,7 +702,7 @@ function pageMarginCost(input) {
         let currCost = 0;
         if (colX == 0) {
             currCost++;
-        }        
+        }
         if (endColX == NUM_COL) {
             currCost++;
         }
@@ -561,7 +749,7 @@ function distributionCost(input) {
     for (x = 0; x < input.length - 1; x++) {
         let y;
         for (y = x + 1; y < input.length; y++) {
-            let currDist = L1(input, x, y);
+            let currDist = EdgeDist(input, x, y);
             sum += currDist;
             dist.push(currDist);
             distMax = Math.max(distMax, currDist);
@@ -651,6 +839,40 @@ function L1(input, x, y) {
         vertDist = ((1 - overlap / rowSpanX) + (1 - overlap / rowSpanY)) / 2;
     }
     return horizDist + vertDist;
+}
+
+function EdgeDist(input, x, y) {
+    let rowX = input[x].style.row;
+    let rowSpanX = input[x].style["row-span"];
+    let endRowX = rowX + rowSpanX - 1;
+    let colX = input[x].style.col;
+    let colSpanX = input[x].style["col-span"];
+    let endColX = colX + colSpanX - 1;
+    let rowY = input[y].style.row;
+    let rowSpanY = input[y].style["row-span"];
+    let endRowY = rowY + rowSpanY - 1;
+    let colY = input[y].style.col;
+    let colSpanY = input[y].style["col-span"];
+    let endColY = colY + colSpanY - 1;
+    let vertDist;
+    let horizDist;
+    // no vertical overlap
+    if (endColX < colY) {
+        horizDist = colY - endColX;
+    } else if (endColY < colX) {
+        horizDist = colX - endColY;
+    } else {
+        horizDist = 0;
+    }
+    // no horiz overlap
+    if (endRowX < rowY) {
+        vertDist = rowY - endRowX;
+    } else if (endRowY < rowX) {
+        vertDist = rowX - endRowY;
+    } else {
+        vertDist = 0;
+    }
+    return Math.min(horizDist, vertDist);
 }
 
 function L2(input, x, y) {
