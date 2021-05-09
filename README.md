@@ -12,7 +12,7 @@ While furniture layout algorithms have been explored in the Computer Graphics fi
 
 #### Step 1: Upload content folder
 
-Upload a file directory, max 10MB.
+Upload a file directory, max 10MB. You can start with the [demo content](./demo-content).
 
 For a simple landing page, one can include in the file directory:
 
