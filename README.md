@@ -1,3 +1,5 @@
+# Automatic Optimization of Website Layout
+
 ## Abstract
 
 While furniture layout algorithms have been explored in the Computer Graphics field, not many optimization algorithms exist for web layouts. I hope to create a software that would consider web design and usability prin-ciples to generate usable website layouts. The algorithm would be based off of furniture arrangement algo-rithms. It would use a combination of optimization-based technique and procedural generation.
