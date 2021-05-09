@@ -1,0 +1,112 @@
+<!doctype html>
+
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+
+  <title>Generate Landing Page</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
+
+</head>
+
+<body>
+  <nav class="navbar navbar-light bg-light mb-5">
+    <div class="container">
+      <a class="navbar-brand h1" href="#">Automatic Website Generation</a>
+      <a>By Reshu Catherine Liang</a>
+    </div>
+    
+  </nav>
+  <div style="display:grid; grid-template-columns: repeat(12, 8.33%); grid-template-rows: auto auto;">
+    
+    <!--<img id="img" src="test-content/alpha/japan-750x536.jpg" style="grid-area: 1 / 8 / 3 / span 5; width: 100%;">-->
+    <!--<h1 class="px-4" style="grid-area: 1 / 1 / auto / span 7; width: 100%;">Come to Japan</h1>-->
+    <!--<p id="text" class="px-4" style="grid-area: 2 / 1 / auto / span 7; width: 100%;">Japan is the eleventh-most populous country in the world, as well as one of the most densely populated and urbanized. About three-fourths of the country's terrain is mountainous, concentrating its population of 125.48 million on narrow coastal plains. Japan is divided into 47 administrative prefectures and eight traditional regions. The Greater Tokyo Area is the most populous metropolitan area in the world, with more than 37.4 million residents.</p>-->
+    <!--<img src="test-content/london-1920x1080.jpg" style="grid-area: 1 / 3 / 2 / 4; width: 100%;">-->
+    <!--<img src="test-content/paris-1920x1279.jpg" style="height: 250px; width: auto;">-->
+  </div>
+  <div id="test"></div>
+  <div class="container">
+    <div class="row mb-4">
+      <div class="col">
+        <div style="position:relative;padding-bottom:56.25%;">
+          <iframe src="https://docs.google.com/presentation/d/e/2PACX-1vQNLNOwjfSyaAfkb3IQnXVs7o2GprHZUEvuItQNJbHRd80TU2nik7CeuYFoTaXYUVx2LM3SwSb0T9bz/embed?start=true&loop=true&delayms=5000" frameborder="0" style="width:100%;height:100%;position:absolute;left:0px;top:0px;" allowfullscreen="true" mozallowfullscreen="true" webkitallowfullscreen="true"></iframe>
+        </div>
+        <br/>
+        <h2>Abstract</h2>
+        <p>
+          While furniture layout algorithms have been explored in the Computer Graphics field, not many optimization algorithms exist for web layouts. I hope to create a software that would consider web design and usability prin-ciples to generate usable website layouts. The algorithm would be based off of furniture arrangement algo-rithms. It would use a combination of optimization-based technique and procedural generation.
+          </p>
+        <p><b>Note:</b> This web generation tool is best compatible with Chrome. The websites generated are adapted to the pc screen. They do not adapt to scale for mobile, tablet, or other formats.</p>
+        <br/>
+        <h2>Demo</h2>
+        <h4>Step 1: Upload content folder</h4>
+        <p>Upload file a directory, max 10MB.</p>
+        <p>For a simple landing page, one can include in the file directory:</p>
+        <ul>
+          <li>h1.txt - a title text, in a txt file named "h1"</li>
+          <li>h3.txt - a subtitle text, in a txt file named "h3"</li>
+          <li>p.txt - a paragraph text, in a txt file named "p"</li>
+          <li>button.txt - a call-to-action button text, in a txt file named "button"</li>
+          <li>image (png/jpg) - an image, in a png/jpg file with any name</li>
+          <li>background image (png/jpg) - an image, in a png/jpg file named "background"</li>
+          <li>logo (png/jpg) - an image, in a png/jpg file named "logo"</li>
+        </ul>
+        <p>For multiple page sections, one can include in the file directory:</p>
+        <ul>
+          <li>subfolders representing content within each section, named by section order, beginning with 0 (e.g. 0/, 1/, 2/ etc.)</li>
+        </ul>
+        <p>For folder 0, the landing page section, one can include in the file directory:</p>
+        <ul>
+          <li>Any items outlined above for simple landing page</li>
+        </ul>
+        <p>For folders 1 and above, or sections following the landing, one can include in the file directory:</p>
+        <ul>
+          <li>h1.txt - a title text, in a txt file named "h1"</li>
+          <li>h3.txt - a subtitle text, in a txt file named "h3"</li>
+          <li>p.txt - a paragraph text, in a txt file named "p"</li>
+          <li>button.txt - a call-to-action button text, in a txt file named "button"</li>
+          <li>image (png/jpg) - an image, in a png/jpg file with any name</li>
+          <li>gallery images (png/jpg) - a series of images, in png/jpg file named "gallery1", "gallery2" etc. The gallery arranges images in 4 columns.</li>
+        </ul>
+         <input type="file" id="filepicker" webkitdirectory mozdirectory/>
+        <p id="upload-message"></p>
+        <h4>Step 2: Customize page settings</h4>
+        <form>
+          <label for="vol">Landing title size (between 1 and 5):</label>
+          <input type="range" id="title-size" name="title-size" value="2" min="1" max="5" step="0.5" oninput="this.nextElementSibling.value = this.value"  onchange="websiteModule.setLandingH1Size(this.value)">
+          <output>2</output>
+          <br/>
+          <label for="vol">Section title size (between 1 and 5):</label>
+          <input type="range" id="title-size" name="title-size" value="2" min="1" max="5" step="0.5" oninput="this.nextElementSibling.value = this.value"  onchange="websiteModule.setH1Size(this.value)">
+          <output>2</output>
+        </form>
+        <br/>
+        <h4>Step 3: Generate website</h4>
+        <p>Regereate to see different website layout optimization results.</p>
+        <button type="button" class="btn btn-dark" onclick="websiteModule.generateWebsite()">Generate Website</button>
+      </div>
+    </div>
+    <div class="row mb-4">
+      <div class="col">
+        <iframe id="iframe" style="width: 100%; height: 90vh; outline: 0.5px solid black;" src=""></iframe>
+      </div>
+    </div>
+    <div class="row mb-5">
+      <div class="col">
+        <h4>Step 4: Download HTML</h4>
+        <p>Once you are happy with the results, generate and download the HTML file using the button below. Then place the downloaded HTML file in the same parent directory as the uploaded folder. Then you're done! Open the file in a browser to view it.</p>
+        <button type="button" class="btn btn-dark" onclick="websiteModule.downloadWebsite()">Download HTML</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="construct-page.js"></script>
+</body>
+
+</html>
